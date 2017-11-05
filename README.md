@@ -14,6 +14,8 @@ Loads content seamlessly as the user scrolls to the bottom of the page.
     * What element's bottom should be used to load new content, e.g. the entire window or the bottom of a discussion
     * Whether the new URL should be pushed to the history or used to replace the current
 
+![Scroll](https://github.com/kalynrobinson/xf2_infinite_scroll/raw/master/docs/images/infinitescroll.gif "Scroll")
+
 ## Tip Jar
 * Like my plugins and have some extra coffee money? [Throw it my way!](https://www.paypal.me/shinkacodes/5)
  
