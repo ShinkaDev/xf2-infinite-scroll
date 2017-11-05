@@ -1,0 +1,9 @@
+{
+    "template": "thread_view",
+    "description": "Attaches InfiniteScroll handler to page.",
+    "execution_order": 10,
+    "enabled": true,
+    "action": "str_replace",
+    "find": "data-xf-init=\"{{ $canInlineMod ? 'inline-mod' : '' }}\"",
+    "replace": "data-xf-init=\"{{ ($canInlineMod ? 'inline-mod' : '') . ' infinite-scroll' }}\"\ndata-page=\"{$page}\"\ndata-action=\"{{ link('threads', {$thread}) }}\"\ndata-total=\"{{ $thread.reply_count + 1 }}\"\ndata-per-page=\"{$perPage}\""
+}

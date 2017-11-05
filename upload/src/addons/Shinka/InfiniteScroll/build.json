@@ -1,0 +1,8 @@
+{
+  "additional_files": [
+    "js/shinka/infinitescroll"
+  ],
+  "minify": [
+    "js/shinka/infinitescroll/infinitescroll.js"
+  ]
+}

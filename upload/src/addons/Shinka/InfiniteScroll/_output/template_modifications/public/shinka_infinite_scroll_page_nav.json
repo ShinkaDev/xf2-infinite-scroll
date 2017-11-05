@@ -1,0 +1,9 @@
+{
+    "template": "page_nav",
+    "description": "",
+    "execution_order": 10,
+    "enabled": true,
+    "action": "str_replace",
+    "find": "<div class=\"pageNav {{ $hasSkipStart ? 'pageNav--skipStart' : '' }} {{ $hasSkipEnd ? 'pageNav--skipEnd' : '' }}\">",
+    "replace": "<div class=\"pageNav {{ $hasSkipStart ? 'pageNav--skipStart' : '' }} {{ $hasSkipEnd ? 'pageNav--skipEnd' : '' }}\">"
+}
