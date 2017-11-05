@@ -11,8 +11,8 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
 
         throttleInterval: 200,
         history: 'push',
-        hideNav: true,
-        nav: '.pageNavWrapper',
+        nav: 'update',
+        navContainer: '.pageNavWrapper',
         status: true,
 
         page: 1,
@@ -37,8 +37,8 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
      */
     init: function()
     {
-        if (this.options.hideNav)
-            $(this.options.nav).hide();
+        if (this.options.nav === 'hide')
+            $(this.options.navContainer).hide();
 
         this.currentPage = parseInt(this.options.page) || 1;
         this.$scrollContainer = $(this.options.scrollContainer);
@@ -74,14 +74,8 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
 
         if (this.requestPending)
         {
-            if (event)
-            {
-                event.preventDefault();
-            }
             return;
         }
-
-        event.preventDefault();
 
         console.log('scrolling');
         if (this.withinThreshold())
@@ -120,6 +114,7 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
                 config.ajaxOptions
             ).always(function()
             {
+                console.log('always');
                 // delay re-enable slightly to allow animation to potentially happen
                 setTimeout(function()
                 {
@@ -130,6 +125,12 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
         }, 0);
     },
 
+    /**
+     *
+     * @param data
+     * @param status
+     * @param xhr
+     */
     processResponse: function(data, status, xhr)
     {
         if (typeof data !== 'object')
@@ -180,16 +181,14 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
             XF.setupHtmlInsert(data.html, function($html, container)
             {
                 self.appendPage($html, container);
+                if (self.options.nav === 'update')
+                    self.updateNav($html);
                 self.updateUrl(container);
             });
         }
 
         event = $.Event('infinite-scroll:complete');
         $target.trigger(event, data, this);
-        if (event.isDefaultPrevented())
-        {
-            return;
-        }
     },
 
     /**
@@ -200,12 +199,34 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
      */
     appendPage: function($html, container)
     {
-      $append = $html.find(this.options.append);
-      $append.hide();
-      this.$container.append($append);
-      $append.xfFadeDown(null, XF.layoutChange);
+        $append = $html.find(this.options.append);
+        $append.hide();
+        this.$container.append($append);
+
+        $append.xfFadeDown(null, XF.layoutChange);
+        XF.activate($append);
     },
 
+    /**
+     * Replaces pager with the one in the response HTML
+     *
+     * @param $html HTML returned by the HTTP response
+     */
+    updateNav: function($html)
+    {
+        $new = $html.find(this.options.navContainer);
+        $old = $(this.options.navContainer);
+
+        if ($new.length !== $old.length) return;
+
+        $.each($new, (ndx, $n) => $old[ndx].replaceWith($n));
+    },
+
+    /**
+     * Updates current URL or pushes to history
+     *
+     * @param container
+     */
     updateUrl: function(container)
     {
         if (this.options.history === 'replace')
