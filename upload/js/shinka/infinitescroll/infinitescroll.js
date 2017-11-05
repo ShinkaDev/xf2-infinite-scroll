@@ -3,15 +3,14 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
         action: null,
         method: 'get',
         append: '.message--post',
-        container: '.block-container:first',
+        container: '.block-body:first',
 
         scrollThreshold: 100,
         scrollContainer: window,
         bottom: '.block-container:first',
 
-        throttleInterval: 100,
+        throttleInterval: 200,
         history: 'push',
-        updateTitle: true,
         hideNav: true,
         nav: '.pageNavWrapper',
         status: true,
@@ -73,7 +72,7 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
             return;
         }
 
-        if (self.requestPending)
+        if (this.requestPending)
         {
             if (event)
             {
@@ -100,11 +99,12 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
         var self = this;
         self.requestPending = true;
 
+        this.action = self.buildUrl();
         var event = $.Event('infinite-scroll:before'),
             config = {
                 handler: this,
                 method: self.options.method,
-                action: self.buildUrl(),
+                action: self.action,
                 successCallback: $.proxy(this, 'processResponse'),
                 ajaxOptions: { skipDefault: true }
             };
@@ -180,6 +180,7 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
             XF.setupHtmlInsert(data.html, function($html, container)
             {
                 self.appendPage($html, container);
+                self.updateUrl(container);
             });
         }
 
@@ -203,6 +204,18 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
       $append.hide();
       this.$container.append($append);
       $append.xfFadeDown(null, XF.layoutChange);
+    },
+
+    updateUrl: function(container)
+    {
+        if (this.options.history === 'replace')
+        {
+            window.location.href = this.action;
+        }
+        else
+        {
+            history.pushState(container.title, this.action);
+        }
     },
 
     /**
