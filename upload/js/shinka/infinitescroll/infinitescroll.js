@@ -26,6 +26,7 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
     $scrollContainer: null,
     $bottom: null,
     $container: null,
+    $nav: null,
     bottomPosition: null,
     action: null,
     currentPage: 1,
@@ -44,18 +45,24 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
         this.$scrollContainer = $(this.options.scrollContainer);
         this.$bottom = $(this.options.bottom);
         this.$container = $(this.options.container);
+        this.$nav = $(this.options.navContainer);
         this.bottomPosition = this.calculateBottomPosition();
         this.action = this.options.action;
         this.lastPage = this.options.lastPage || Math.ceil(this.options.total / this.options.perPage) || 20;
 
-        console.log('init');
-        console.log('page: ' + this.options.page);
+        // history.scrollRestoration = 'manual';
+
+        history.replaceState({container: this.$container.html(), nav: this.$nav.html(), page: this.currentPage},
+            document.title,
+            window.location.href);
 
         // Handle scroll event only once in the given interval
-        this.$scrollContainer.on('scroll', this.debounce(
+        this.$scrollContainer.scroll(this.debounce(
             $.proxy(this, 'infiniteScrollHandler'),
             this.options.throttleInterval
         ));
+
+        $(window).on('popstate', $.proxy(this, 'back'));
     },
 
     /**
@@ -65,14 +72,7 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
      */
     infiniteScrollHandler: function(event)
     {
-        // Remove scroll listener if on the last page
-        if (this.currentPage === this.lastPage)
-        {
-            this.$scrollContainer.off(event);
-            return;
-        }
-
-        if (this.requestPending)
+        if (this.currentPage === this.lastPage || this.requestPending)
         {
             return;
         }
@@ -90,17 +90,17 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
     getNextPage: function()
     {
 
-        var self = this;
+        let self = this;
         self.requestPending = true;
 
-        this.action = self.buildUrl();
-        var event = $.Event('infinite-scroll:before'),
+        this.action = self.buildUrl(this.currentPage+1);
+        let event = $.Event('infinite-scroll:before'),
             config = {
                 handler: this,
                 method: self.options.method,
                 action: self.action,
                 successCallback: $.proxy(this, 'processResponse'),
-                ajaxOptions: { skipDefault: true }
+                ajaxOptions: {skipDefault: true}
             };
 
         // do this in a timeout to ensure that all other handlers run
@@ -114,7 +114,6 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
                 config.ajaxOptions
             ).always(function()
             {
-                console.log('always');
                 // delay re-enable slightly to allow animation to potentially happen
                 setTimeout(function()
                 {
@@ -140,12 +139,14 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
         }
 
         this.currentPage++;
-        var errorEvent = $.Event('infinite-scroll:error'),
-            hasError = false,
-            $target = this.$target;
+        const $target = this.$target;
+        const self = this;
 
-        var event = $.Event('infinite-scroll:response');
+        let event = $.Event('infinite-scroll:response');
         $target.trigger(event, data, this);
+
+        let errorEvent = $.Event('infinite-scroll:error'),
+            hasError = false;
 
         if (data.errorHtml)
         {
@@ -154,7 +155,7 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
             {
                 XF.setupHtmlInsert(data.errorHtml, function($html, container)
                 {
-                    var title = container.h1 || container.title || XF.phrase('oops_we_ran_into_some_problems');
+                    const title = container.h1 || container.title || XF.phrase('oops_we_ran_into_some_problems');
                     XF.overlayMessage(title, $html);
                 });
             }
@@ -175,15 +176,23 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
         {
             XF.alert(data.exception);
         }
-        else if (data.status === 'ok' && data.html)
+        else if (data.html)
         {
-            var self = this;
-            XF.setupHtmlInsert(data.html, function($html, container)
+            XF.setupHtmlInsert(data.html, function($html, container, onComplete)
             {
-                self.appendPage($html, container);
-                if (self.options.nav === 'update')
+                if (self.appendPage($html, onComplete))
+                {
                     self.updateNav($html);
-                self.updateUrl(container);
+                    self.updateUrl(container);
+                    return false;
+                }
+
+                // I have literally no idea why this is necessary, but XF throws an exception without it
+                const $childOverlay = XF.getOverlayHtml({
+                    html: $html,
+                    title: container.h1 || container.title
+                });
+                XF.showOverlay($childOverlay);
             });
         }
 
@@ -199,12 +208,17 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
      */
     appendPage: function($html, container)
     {
+        if (!this.$container.length) return false;
+
         $append = $html.find(this.options.append);
         $append.hide();
         this.$container.append($append);
-
         $append.xfFadeDown(null, XF.layoutChange);
         XF.activate($append);
+
+        this.bottomPosition = this.calculateBottomPosition();
+
+        return true;
     },
 
     /**
@@ -215,11 +229,11 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
     updateNav: function($html)
     {
         $new = $html.find(this.options.navContainer);
-        $old = $(this.options.navContainer);
 
-        if ($new.length !== $old.length) return;
+        if ($new.length !== this.$nav.length) return;
 
-        $.each($new, (ndx, $n) => $old[ndx].replaceWith($n));
+        $.each($new, (ndx, $n) => this.$nav[ndx].replaceWith($n));
+        this.$nav = $(this.options.navContainer);
     },
 
     /**
@@ -229,14 +243,45 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
      */
     updateUrl: function(container)
     {
-        if (this.options.history === 'replace')
+        if (this.options.history)
         {
-            window.location.href = this.action;
+            history.pushState({container: this.$container.html(), nav: this.$nav.html(), page: this.currentPage},
+                              document.title,
+                              this.buildUrl(this.currentPage));
         }
-        else
-        {
-            history.pushState(container.title, this.action);
-        }
+
+        document.title = container.title + XF.phrase('title_page_x', {'{page}': this.currentPage}) + ' | Xenforo';
+    },
+
+    buildTitle: function(container, page)
+    {
+        return (page > 1 ?
+                    container.title + XF.phrase('title_page_x', {'{page}': page}) + ' | Xenforo' :
+                    container.title + ' | Xenforo');
+    },
+
+    back: function(event)
+    {
+        let state = event.originalEvent.state;
+        if (state === null) return;
+
+        let $toKeep = $(state.container).filter(':hidden');
+        let $children = this.$container.children();
+        let $toRemove = $children.slice($toKeep.length);
+        $toRemove.xfFadeUp(null, XF.layoutChange);
+        $toRemove.remove();
+
+        this.$nav.html(state.nav);
+        this.$nav = $(this.options.navContainer);
+        this.currentPage = state.page;
+
+        // history.scrollRestoration isn't supported on IE/Edge
+        // because of course it isn't
+        // so set scroll fix on a slight delay so it fires after scrollRestoration
+        setTimeout(
+            () => this.$scrollContainer.scrollTop($children[$toKeep.length-this.options.perPage].offsetTop),
+            100
+        );
     },
 
     /**
@@ -248,12 +293,12 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
      */
     debounce: function(func, interval)
     {
-        var lastCall = -1;
+        let lastCall = -1;
         return function()
         {
             clearTimeout(lastCall);
-            var args = arguments;
-            var self = this;
+            const args = arguments;
+            const self = this;
             lastCall = setTimeout(function()
             {
                 func.apply(self, args);
@@ -276,13 +321,13 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
      */
     withinThreshold: function()
     {
-        var scrollPosition = this.$scrollContainer.scrollTop();
+        let scrollPosition = this.$scrollContainer.scrollTop();
         return scrollPosition >= this.bottomPosition - this.options.scrollThreshold;
     },
 
-    buildUrl: function()
+    buildUrl: function(page)
     {
-        return this.options.action + 'page-' + (this.currentPage + 1);
+        return this.options.action + 'page-' + (page);
     }
 });
 
