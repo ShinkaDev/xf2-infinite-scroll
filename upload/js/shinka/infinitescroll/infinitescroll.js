@@ -8,19 +8,17 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
         scrollThreshold: 100,
         scrollContainer: window,
         bottom: '.block-container:first',
+        scrollDuration: 300,
 
         throttleInterval: 200,
-        history: 'push',
+        history: true,
         nav: 'update',
         navContainer: '.pageNavWrapper',
-        status: true,
 
         page: 1,
         lastPage: null,
         perPage: 20,
         total: null,
-        link: null,
-        data: null
     },
 
     $scrollContainer: null,
@@ -62,7 +60,8 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
             this.options.throttleInterval
         ));
 
-        $(window).on('popstate', $.proxy(this, 'back'));
+        // Handle backward and forward navigation
+        $(window).on('popstate', $.proxy(this, 'popstate'));
     },
 
     /**
@@ -260,27 +259,47 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
                     container.title + ' | Xenforo');
     },
 
-    back: function(event)
+    popstate: function(event)
     {
         let state = event.originalEvent.state;
         if (state === null) return;
 
-        let $toKeep = $(state.container).filter(':hidden');
+        let $incoming = $(state.container).filter(':hidden');
         let $children = this.$container.children();
-        let $toRemove = $children.slice($toKeep.length);
-        $toRemove.xfFadeUp(null, XF.layoutChange);
-        $toRemove.remove();
+
+        if ($incoming.length <= $children.length)
+        {
+            // going backward
+            let $toRemove = $children.slice($incoming.length);
+            $toRemove.xfFadeUp(null, function()
+            {
+                $toRemove.remove();
+                XF.layoutChange();
+            });
+        }
+        else
+        {
+            // going forward
+            let $toAdd = $incoming.slice($children.length);
+            $toAdd.hide();
+            this.$container.append($toAdd);
+            $toAdd.xfFadeDown(null, XF.layoutChange);
+            XF.activate($toAdd);
+        }
 
         this.$nav.html(state.nav);
         this.$nav = $(this.options.navContainer);
+        this.bottomPosition = this.calculateBottomPosition();
         this.currentPage = state.page;
 
         // history.scrollRestoration isn't supported on IE/Edge
         // because of course it isn't
         // so set scroll fix on a slight delay so it fires after scrollRestoration
         setTimeout(
-            () => this.$scrollContainer.scrollTop($children[$toKeep.length-this.options.perPage].offsetTop),
-            100
+            () => $('html, body').animate({
+                scrollTop: $children[$incoming.length-this.options.perPage].offsetTop,
+            }, this.options.scrollDuration || 300),
+            300
         );
     },
 
@@ -325,6 +344,11 @@ XF.ShinkaInfiniteScroll = XF.Element.newHandler({
         return scrollPosition >= this.bottomPosition - this.options.scrollThreshold;
     },
 
+    /**
+     *
+     * @param page
+     * @returns {string}
+     */
     buildUrl: function(page)
     {
         return this.options.action + 'page-' + (page);
